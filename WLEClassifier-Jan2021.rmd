@@ -1,0 +1,159 @@
+---
+title: "Weight Lifting Exercise Classifier Study"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r preamble, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE)
+
+library(ggplot2)
+library(caret)
+library(rattle)
+library(e1071)
+library(readr)
+library(curl)
+library(rvest)
+library(randomForest)
+library(ISLR)
+library(AppliedPredictiveModeling)
+library(tinytex)
+
+
+```
+
+## Executive Summary
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+In this dataset, six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Participants were supervised by an experienced weight lifter to make sure the execution complied to the manner they were supposed to simulate. The exercises were performed by six male participants aged between 20-28 years, with little weight lifting experience. We made sure that all participants could easily simulate the mistakes in a safe and controlled manner by using a relatively light dumbbell (1.25kg).
+
+More details regarding this study can be found here: <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har#weight_lifting_exercises>
+
+
+
+
+```{r load data}
+
+buildURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+building <- read.csv(buildURL,
+                     na.strings = c("NA", "#DIV/0!", ""),
+                     stringsAsFactors = TRUE)
+
+testing <- read.csv(testURL,
+                    na.strings = c("NA", "#DIV/0!", ""),
+                    stringsAsFactors = TRUE)
+
+
+building <- building[, -1:-7]
+testing <- testing[, -1:-7]
+
+```
+
+## Dimension reduction
+
+Due to the large number of variables with a significant proportion of values being NA, these variables contribute little to the prediction algorithms, but come with a significant efficiency cost.
+
+To remove these near-zero-variance variables, we create a function that retains only the variables with the proportion of NA's below a specified threshold. For example, if we specified a threshold of 50%, only variables for which less than 50% of all observations are NA will be retained.
+
+```{r retainNAColIndex function}
+retainNAColIndex <- function(argThresh) {
+        apply(is.na(building), 2, sum)/dim(building)[1] < argThresh
+}
+```
+
+
+By imposing two thresholds at 90% and 10%, we observe that they gave us the same 53 variables. These will be used in our prediction algorithms.
+
+```{r retainNAColIndex execution}
+sum(retainNAColIndex(.9))
+sum(retainNAColIndex(.1))
+
+colsToRetain <- retainNAColIndex(.9)
+
+building <- building[, colsToRetain]
+testing <- testing[, colsToRetain]
+```
+
+We conduct one final check on the near zero variance covariates, and the test returns no NZV variables. The dataset has been sufficiently cleaned and ready for model training and validation.
+
+
+```{r check NZV}
+nearZeroVar(building)
+```
+
+
+## Training Model
+
+We begin with splitting the dataset into training & validation. We will approach the classification problem with 3 different algorithms, and select one that works best.
+
+
+```{r set training and validation sets}
+set.seed(300)
+
+inTrain <- createDataPartition(y = building$classe,
+                               p = 0.7,
+                               list = FALSE)
+
+training <- building[inTrain, ]
+validation <- building[-inTrain, ]
+```
+
+
+
+## Linear Discriminant Analysis
+
+```{r lda}
+modelLDA <- train(data = training,
+                  classe ~ .,
+                  method = "lda",
+                  trControl = trainControl(method = "cv"),
+                  preProcess = c("center", "scale"),
+                  verbose = FALSE)
+
+cvLDA <- predict(modelLDA, newdata = validation)
+confusionMatrix(cvLDA, validation$classe)
+```
+
+## Gradient Boosting Method
+
+```{r gbm}
+modelGBM <- train(data = training,
+                  classe ~ .,
+                  method = "gbm",
+                  preProcess <- c("center", "scale"),
+                  verbose = FALSE)
+
+cvGBM <- predict(modelGBM, newdata = validation)
+confusionMatrix(cvGBM, validation$classe)
+
+```
+
+
+### Random Forest
+
+```{r rf}
+modelRF <- train(data = training,
+                 classe ~ .,
+                 method = "rf",
+                 trControl = trainControl(method = "cv", number = 4),
+                 preProcess = c("center", "scale"),
+                 verbose = FALSE)
+cvRF <- predict(modelRF, newdata = validation)
+confusionMatrix(cvRF, validation$classe)
+```
+
+It appears that random forest is the most accurate algorithm, with an overall accuracy of around 99% on the validation set. It can be reasonably expected the out-of-sample error to be no more than 10%.
+
+## Testing
+```{r}
+predict(modelRF, newdata = testing)
+```
+
+
