@@ -1,0 +1,16 @@
+base
+ggplot2
+lattice
+caret
+tibble
+bitops
+rattle
+e1071
+readr
+curl
+xml2
+rvest
+randomForest
+ISLR
+AppliedPredictiveModeling
+tinytex

@@ -1,8 +1,8 @@
 ---
 title: "Weight Lifting Exercise Classifier Study"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 ```{r preamble, include=FALSE}
